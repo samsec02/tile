@@ -12,6 +12,19 @@
 #      bash tile-archinstall.sh
 #  Skip the animations:
 #      FAST=1 bash tile-archinstall.sh
+#
+#System (same as complete-install.sh):
+#    * Chosen disk wiped: GPT, 1 GiB EFI + LUKS2-encrypted Btrfs, zram swap
+#    * systemd-boot, English GUI, Swedish keyboard/formats/timezone
+#    * Pre-installed apps may include Firefox, Discord etc etc
+#
+#  Desktop — Hyprland, ready to use on first login:
+#    * Login: greetd + tuigreet (themed text login), then Hyprland
+#    * Top bar: Waybar (workspaces, clock, volume, network, battery, power)
+#    * App launcher: fuzzel (tap SUPER), notifications: mako
+#    * Lock + idle: hyprlock / hypridle, wallpaper generated at install
+#    * Terminal kitty, files Thunar, dark theme everywhere, 100% scaling
+#    * Shortcut cheat sheet on SUPER + F1
 # =============================================================================
 set -Eeuo pipefail
 
