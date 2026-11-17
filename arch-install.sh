@@ -12,19 +12,6 @@
 #      bash tile-archinstall.sh
 #  Skip the animations:
 #      FAST=1 bash tile-archinstall.sh
-#
-#System (same as complete-install.sh):
-#    * Chosen disk wiped: GPT, 1 GiB EFI + LUKS2-encrypted Btrfs, zram swap
-#    * systemd-boot, English GUI, Swedish keyboard/formats/timezone
-#    * Pre-installed apps may include Firefox, Discord etc etc
-#
-#  Desktop — Hyprland, ready to use on first login:
-#    * Login: greetd + tuigreet (themed text login), then Hyprland
-#    * Top bar: Waybar (workspaces, clock, volume, network, battery, power)
-#    * App launcher: fuzzel (tap SUPER), notifications: mako
-#    * Lock + idle: hyprlock / hypridle, wallpaper generated at install
-#    * Terminal kitty, files Thunar, dark theme everywhere, 100% scaling
-#    * Shortcut cheat sheet on SUPER + F1
 # =============================================================================
 set -Eeuo pipefail
 
@@ -40,7 +27,7 @@ COMMON_PKGS=(
   base linux linux-firmware
   btrfs-progs cryptsetup dosfstools
   networkmanager sudo nano vim git base-devel man-db man-pages
-  zram-generator xdg-user-dirs python
+  pacman-contrib zram-generator xdg-user-dirs python
   # Hyprland desktop
   hyprland xdg-desktop-portal-hyprland xdg-desktop-portal-gtk
   hyprlock hypridle waybar fuzzel mako swaybg
@@ -64,7 +51,7 @@ COMMON_PKGS=(
 )
 EXTRA_PKGS=(hyprpolkitagent hyprland-guiutils cliphist papirus-icon-theme adwaita-cursors)
 
-COMMON_SERVICES=(NetworkManager greetd bluetooth ufw fstrim.timer systemd-timesyncd systemd-boot-update)
+COMMON_SERVICES=(NetworkManager greetd bluetooth ufw fstrim.timer paccache.timer systemd-timesyncd systemd-boot-update)
 COMMON_FLATPAKS=(
   com.discordapp.Discord
   org.signal.Signal
@@ -341,8 +328,8 @@ banner() {
   local colors=("$BL" "$BL" "$CY" "$CY" "$MG" "$MG")
   local side=(
     ""
-    "${WH}ARCH + HYPRLAND${C0}  ${DIM}tiling deployment v2.0${C0}"
-    "${DIM}dynamic tiling // wayland // multi-theme${C0}"
+    "${WH}ARCH + HYPRLAND${C0}  ${DIM}tiling deployment v2.2${C0}"
+    "${DIM}dynamic tiling // wayland // 10 themes${C0}"
     "${DIM}status   ${C0}${GR}ready${C0}"
     "${DIM}target   ${C0}x86_64 / uefi / luks2"
     ""
@@ -563,7 +550,7 @@ PLAN=(
   "Swap     : zram ~$(( ZRAM_MIB / 1024 )) GiB (compressed RAM)"
   "Hostname : $HOSTNAME"
   "Operator : $USERNAME (sudo) / root locked"
-  "Desktop  : Hyprland / Waybar (net traffic) / 6 Themes"
+  "Desktop  : Hyprland / Waybar / 5 Themes (Dark + Light)"
   "Login    : greetd + tuigreet"
   "Firewall : ufw on (incoming blocked, outgoing allowed)"
   "Locale   : English UI / Swedish keyboard + formats"
@@ -666,24 +653,24 @@ do_fstab() {
 }
 
 # -----------------------------------------------------------------------------
-#  Desktop environment, themes & wallpapers
+#  Desktop environment, 10 themes (5 Dark + 5 Light) & wallpapers
 # -----------------------------------------------------------------------------
 do_desktop() {
   local S=/mnt/etc/skel/.config
   mkdir -p "$S"/{hypr,waybar/themes,kitty/themes,fuzzel/themes,mako/themes,gtk-3.0,gtk-4.0,tile} \
            /mnt/usr/local/bin /mnt/usr/local/share/tile "/mnt$WALLPAPER_DIR"
 
-  # ---- Multi-theme Wallpaper Generator ---------------------------------------
+  # ---- Multi-theme Wallpaper Generator (Dark + Light per family) ------------
   cat > /mnt/root/gen-wallpaper.py <<'PY'
 #!/usr/bin/env python3
 import math, struct, sys, zlib
 
 W, H = 1920, 1080
-mode = sys.argv[1] if len(sys.argv) > 1 else "tokyo-night"
+mode = sys.argv[1] if len(sys.argv) > 1 else "tokyo-dark"
 out  = sys.argv[2] if len(sys.argv) > 2 else "wallpaper.png"
 
 THEMES = {
-    "tokyo-night": {
+    "tokyo-dark": {
         "top": (11, 12, 22), "bottom": (26, 27, 38),
         "glows": [
             (0.18 * W, 0.92 * H, 0.75 * W, (122, 162, 247), 0.42),
@@ -692,7 +679,7 @@ THEMES = {
         ],
         "dot": (122, 162, 247), "dotk": 0.18
     },
-    "tokyo-day": {
+    "tokyo-light": {
         "top": (238, 240, 248), "bottom": (214, 219, 236),
         "glows": [
             (0.18 * W, 0.92 * H, 0.75 * W, (46, 125, 233), 0.20),
@@ -701,8 +688,8 @@ THEMES = {
         ],
         "dot": (46, 125, 233), "dotk": 0.14
     },
-    "matcha-pastel": {
-        "top": (22, 32, 26), "bottom": (34, 48, 39),
+    "matcha-dark": {
+        "top": (20, 30, 24), "bottom": (32, 46, 37),
         "glows": [
             (0.20 * W, 0.85 * H, 0.75 * W, (163, 217, 165), 0.36),
             (0.85 * W, 0.15 * H, 0.65 * W, (216, 243, 220), 0.24),
@@ -710,8 +697,17 @@ THEMES = {
         ],
         "dot": (163, 217, 165), "dotk": 0.18
     },
-    "sunset-ember": {
-        "top": (42, 18, 12), "bottom": (88, 36, 16),
+    "matcha-light": {
+        "top": (241, 248, 243), "bottom": (222, 238, 227),
+        "glows": [
+            (0.20 * W, 0.85 * H, 0.75 * W, (82, 183, 136), 0.20),
+            (0.85 * W, 0.15 * H, 0.65 * W, (116, 198, 157), 0.16),
+            (0.50 * W, 0.50 * H, 0.40 * W, (64, 145, 108), 0.04),
+        ],
+        "dot": (64, 145, 108), "dotk": 0.14
+    },
+    "sunset-dark": {
+        "top": (40, 16, 10), "bottom": (82, 33, 15),
         "glows": [
             (0.15 * W, 0.90 * H, 0.80 * W, (255, 138, 61), 0.45),
             (0.88 * W, 0.12 * H, 0.65 * W, (255, 183, 3), 0.32),
@@ -719,7 +715,16 @@ THEMES = {
         ],
         "dot": (255, 183, 3), "dotk": 0.16
     },
-    "nordic-frost": {
+    "sunset-light": {
+        "top": (255, 246, 238), "bottom": (252, 230, 212),
+        "glows": [
+            (0.15 * W, 0.90 * H, 0.80 * W, (247, 127, 0), 0.22),
+            (0.88 * W, 0.12 * H, 0.65 * W, (252, 163, 17), 0.18),
+            (0.52 * W, 0.48 * H, 0.45 * W, (214, 40, 40), 0.04),
+        ],
+        "dot": (230, 92, 0), "dotk": 0.14
+    },
+    "nordic-dark": {
         "top": (24, 29, 38), "bottom": (36, 44, 56),
         "glows": [
             (0.20 * W, 0.88 * H, 0.75 * W, (136, 192, 208), 0.38),
@@ -728,7 +733,16 @@ THEMES = {
         ],
         "dot": (136, 192, 208), "dotk": 0.16
     },
-    "rose-quartz": {
+    "nordic-light": {
+        "top": (236, 239, 244), "bottom": (216, 222, 233),
+        "glows": [
+            (0.20 * W, 0.88 * H, 0.75 * W, (94, 129, 172), 0.20),
+            (0.85 * W, 0.12 * H, 0.60 * W, (129, 161, 193), 0.16),
+            (0.50 * W, 0.50 * H, 0.35 * W, (136, 192, 208), 0.04),
+        ],
+        "dot": (94, 129, 172), "dotk": 0.14
+    },
+    "rose-dark": {
         "top": (32, 18, 28), "bottom": (52, 28, 44),
         "glows": [
             (0.18 * W, 0.90 * H, 0.75 * W, (244, 143, 177), 0.38),
@@ -737,9 +751,18 @@ THEMES = {
         ],
         "dot": (244, 143, 177), "dotk": 0.17
     },
+    "rose-light": {
+        "top": (253, 242, 246), "bottom": (246, 224, 234),
+        "glows": [
+            (0.18 * W, 0.90 * H, 0.75 * W, (216, 27, 96), 0.18),
+            (0.86 * W, 0.10 * H, 0.62 * W, (142, 36, 170), 0.14),
+            (0.52 * W, 0.52 * H, 0.38 * W, (236, 64, 122), 0.04),
+        ],
+        "dot": (194, 24, 91), "dotk": 0.14
+    },
 }
 
-cfg = THEMES.get(mode, THEMES["tokyo-night"])
+cfg = THEMES.get(mode, THEMES["tokyo-dark"])
 top, bottom = cfg["top"], cfg["bottom"]
 glows = cfg["glows"]
 GRID, DOT, DOTK = 44, cfg["dot"], cfg["dotk"]
@@ -772,7 +795,7 @@ with open(out, "wb") as f:
     f.write(png)
 PY
 
-  for tname in tokyo-night tokyo-day matcha-pastel sunset-ember nordic-frost rose-quartz; do
+  for tname in tokyo-dark tokyo-light matcha-dark matcha-light sunset-dark sunset-light nordic-dark nordic-light rose-dark rose-light; do
     arch-chroot /mnt python3 /root/gen-wallpaper.py "$tname" "$WALLPAPER_DIR/$tname.png"
   done
   rm -f /mnt/root/gen-wallpaper.py
@@ -832,7 +855,7 @@ EOF
 
   cat > /mnt/usr/local/bin/tile-keybinds <<'EOF'
 #!/bin/bash
-fuzzel --dmenu --prompt "Shortcuts ❯ " --width 58 --lines 24 < /usr/local/share/tile/keybinds.txt >/dev/null
+fuzzel --dmenu --prompt "Shortcuts ❯ " --width 58 --lines 25 < /usr/local/share/tile/keybinds.txt >/dev/null
 EOF
 
   cat > /mnt/usr/local/bin/tile-welcome <<'EOF'
@@ -840,7 +863,7 @@ EOF
 mark="${XDG_CONFIG_HOME:-$HOME/.config}/.tile-welcome-done"
 [[ -f "$mark" ]] && exit 0
 sleep 3
-notify-send -t 15000 "Welcome to Tile" "Tap SUPER for apps  ·  SUPER + Enter for a terminal\nSUPER + T opens the theme menu  ·  SUPER + F1 shows shortcuts"
+notify-send -t 15000 "Welcome to Tile" "Tap SUPER for apps  ·  SUPER + Enter for a terminal\nSUPER + T opens the theme menu  ·  SUPER + Shift + T toggles Dark/Light"
 touch "$mark"
 EOF
 
@@ -850,20 +873,40 @@ EOF
 CFG="${XDG_CONFIG_HOME:-$HOME/.config}"
 STATE="$CFG/tile/theme"
 cur=$(cat "$STATE" 2>/dev/null)
-[[ -f "$CFG/waybar/themes/$cur.css" ]] || cur="tokyo-night"
+[[ -f "$CFG/waybar/themes/$cur.css" ]] || cur="tokyo-dark"
 
 THEMES=(
-  "tokyo-night|Tokyo Night (Dark)"
-  "tokyo-day|Tokyo Day (Light)"
-  "matcha-pastel|Matcha Pastel (Green)"
-  "sunset-ember|Sunset Ember (Orange)"
-  "nordic-frost|Nordic Frost (Arctic)"
-  "rose-quartz|Rose Quartz (Pink)"
+  "tokyo-dark|Tokyo Night — Dark"
+  "tokyo-light|Tokyo Night — Light"
+  "matcha-dark|Matcha Pastel — Dark"
+  "matcha-light|Matcha Pastel — Light"
+  "sunset-dark|Sunset Ember — Dark"
+  "sunset-light|Sunset Ember — Light"
+  "nordic-dark|Nordic Frost — Dark"
+  "nordic-light|Nordic Frost — Light"
+  "rose-dark|Rose Quartz — Dark"
+  "rose-light|Rose Quartz — Light"
 )
+
+border_colors() {
+  case "$1" in
+    tokyo-dark)   echo "rgba(7aa2f7ee) rgba(bb9af7ee) 45deg|rgba(414868aa)" ;;
+    tokyo-light)  echo "rgba(2e7de9ee) rgba(9854f1ee) 45deg|rgba(a8aecbaa)" ;;
+    matcha-dark)  echo "rgba(a3d9a5ee) rgba(d8f3dcee) 45deg|rgba(3d5245aa)" ;;
+    matcha-light) echo "rgba(40916cee) rgba(74c69dee) 45deg|rgba(b7e4c7aa)" ;;
+    sunset-dark)  echo "rgba(ff8a3dee) rgba(ffb703ee) 45deg|rgba(5c2c16aa)" ;;
+    sunset-light) echo "rgba(e65c00ee) rgba(fca311ee) 45deg|rgba(f4a261aa)" ;;
+    nordic-dark)  echo "rgba(88c0d0ee) rgba(81a1c1ee) 45deg|rgba(3b4252aa)" ;;
+    nordic-light) echo "rgba(5e81acee) rgba(81a1c1ee) 45deg|rgba(d8dee9aa)" ;;
+    rose-dark)    echo "rgba(f48fb1ee) rgba(ce93d8ee) 45deg|rgba(4a2c40aa)" ;;
+    rose-light)   echo "rgba(d81b60ee) rgba(8e24aaee) 45deg|rgba(f8bbd0aa)" ;;
+    *)            echo "rgba(7aa2f7ee) rgba(bb9af7ee) 45deg|rgba(414868aa)" ;;
+  esac
+}
 
 case "${1:-menu}" in
   icon)
-    [[ "$cur" == "tokyo-day" ]] && echo "󰖙" || echo "󰏘"
+    [[ "$cur" == *-light ]] && echo "󰖙" || echo "󰏘"
     exit 0
     ;;
   menu)
@@ -873,7 +916,7 @@ case "${1:-menu}" in
       name="${entry#*|}"
       [[ "$id" == "$cur" ]] && labels+="● $name\n" || labels+="  $name\n"
     done
-    picked=$(printf '%b' "$labels" | fuzzel --dmenu --prompt "Theme ❯ " --lines 6 --width 30)
+    picked=$(printf '%b' "$labels" | fuzzel --dmenu --prompt "Theme ❯ " --lines 10 --width 30)
     [[ -z "$picked" ]] && exit 0
     picked="${picked#● }"
     picked="${picked#  }"
@@ -887,7 +930,12 @@ case "${1:-menu}" in
     [[ -z "$new" ]] && exit 0
     ;;
   toggle)
-    [[ "$cur" == "tokyo-day" ]] && new="tokyo-night" || new="tokyo-day"
+    family="${cur%-*}"
+    if [[ "$cur" == *-dark ]]; then
+      new="${family}-light"
+    else
+      new="${family}-dark"
+    fi
     ;;
   init)
     new="$cur"
@@ -896,7 +944,7 @@ case "${1:-menu}" in
     if [[ -f "$CFG/waybar/themes/$1.css" ]]; then
       new="$1"
     else
-      echo "usage: tile-theme [menu|toggle|init|tokyo-night|tokyo-day|matcha-pastel|sunset-ember|nordic-frost|rose-quartz]"
+      echo "usage: tile-theme [menu|toggle|init|<family>-<dark|light>]"
       exit 1
     fi
     ;;
@@ -910,7 +958,7 @@ ln -sfn "themes/$new.conf" "$CFG/kitty/theme.conf"
 ln -sfn "themes/$new.ini"  "$CFG/fuzzel/fuzzel.ini"
 ln -sfn "themes/$new"      "$CFG/mako/config"
 
-if [[ "$new" == "tokyo-day" ]]; then
+if [[ "$new" == *-light ]]; then
   scheme=prefer-light; gtk=Adwaita;      icons=Papirus-Light; preferdark=0
 else
   scheme=prefer-dark;  gtk=Adwaita-dark; icons=Papirus-Dark;  preferdark=1
@@ -924,6 +972,12 @@ for v in 3.0 4.0; do
                           -e "s/^gtk-theme-name=.*/gtk-theme-name=$gtk/" \
                           -e "s/^gtk-icon-theme-name=.*/gtk-icon-theme-name=$icons/" "$f"
 done
+
+bcols=$(border_colors "$new")
+active_col="${bcols%%|*}"
+inactive_col="${bcols#*|}"
+hyprctl keyword general:col.active_border "$active_col" >/dev/null 2>&1 || true
+hyprctl keyword general:col.inactive_border "$inactive_col" >/dev/null 2>&1 || true
 
 pkill -x swaybg
 setsid -f swaybg -i "/usr/share/backgrounds/tile/$new.png" -m fill >/dev/null 2>&1
@@ -939,7 +993,6 @@ fi
 if pgrep -f blueman-applet >/dev/null; then
   pkill -f blueman-applet; setsid -f blueman-applet >/dev/null 2>&1
 fi
-hyprctl reload >/dev/null 2>&1
 notify-send -t 2000 "Tile Theme" "Switched to $new"
 EOF
   chmod 755 /mnt/usr/local/bin/tile-*
@@ -963,6 +1016,7 @@ SUPER + Mouse drag   Move window (right button: resize)
 SUPER + S            Scratchpad (hidden workspace)
 SUPER + C            Clipboard history
 SUPER + T            Theme selector menu
+SUPER + Shift + T    Toggle Dark / Light for current theme
 Ctrl + Shift + Esc   System monitor (Mission Center)
 SUPER + L            Lock screen
 SUPER + Escape       Power menu
@@ -986,49 +1040,69 @@ local mainMod     = "SUPER"
 local function read_theme()
     local ok, t = pcall(function()
         local f = io.open(os.getenv("HOME") .. "/.config/tile/theme", "r")
-        if not f then return "tokyo-night" end
+        if not f then return "tokyo-dark" end
         local v = f:read("*l")
         f:close()
         return v
     end)
     if ok and t then return t end
-    return "tokyo-night"
+    return "tokyo-dark"
 end
 
 local palettes = {
-    ["tokyo-night"] = {
+    ["tokyo-dark"] = {
         active   = { colors = {"rgba(7aa2f7ee)", "rgba(bb9af7ee)"}, angle = 45 },
         inactive = "rgba(414868aa)",
         shadow   = 0xee0b0c12,
     },
-    ["tokyo-day"] = {
+    ["tokyo-light"] = {
         active   = { colors = {"rgba(2e7de9ee)", "rgba(9854f1ee)"}, angle = 45 },
         inactive = "rgba(a8aecbaa)",
         shadow   = 0x44000000,
     },
-    ["matcha-pastel"] = {
+    ["matcha-dark"] = {
         active   = { colors = {"rgba(a3d9a5ee)", "rgba(d8f3dcee)"}, angle = 45 },
         inactive = "rgba(3d5245aa)",
         shadow   = 0xee0f1712,
     },
-    ["sunset-ember"] = {
+    ["matcha-light"] = {
+        active   = { colors = {"rgba(40916cee)", "rgba(74c69dee)"}, angle = 45 },
+        inactive = "rgba(b7e4c7aa)",
+        shadow   = 0x44000000,
+    },
+    ["sunset-dark"] = {
         active   = { colors = {"rgba(ff8a3dee)", "rgba(ffb703ee)"}, angle = 45 },
         inactive = "rgba(5c2c16aa)",
         shadow   = 0xee1c0a04,
     },
-    ["nordic-frost"] = {
+    ["sunset-light"] = {
+        active   = { colors = {"rgba(e65c00ee)", "rgba(fca311ee)"}, angle = 45 },
+        inactive = "rgba(f4a261aa)",
+        shadow   = 0x44000000,
+    },
+    ["nordic-dark"] = {
         active   = { colors = {"rgba(88c0d0ee)", "rgba(81a1c1ee)"}, angle = 45 },
         inactive = "rgba(3b4252aa)",
         shadow   = 0xee12161f,
     },
-    ["rose-quartz"] = {
+    ["nordic-light"] = {
+        active   = { colors = {"rgba(5e81acee)", "rgba(81a1c1ee)"}, angle = 45 },
+        inactive = "rgba(d8dee9aa)",
+        shadow   = 0x44000000,
+    },
+    ["rose-dark"] = {
         active   = { colors = {"rgba(f48fb1ee)", "rgba(ce93d8ee)"}, angle = 45 },
         inactive = "rgba(4a2c40aa)",
         shadow   = 0xee170c14,
     },
+    ["rose-light"] = {
+        active   = { colors = {"rgba(d81b60ee)", "rgba(8e24aaee)"}, angle = 45 },
+        inactive = "rgba(f8bbd0aa)",
+        shadow   = 0x44000000,
+    },
 }
 
-local theme = palettes[read_theme()] or palettes["tokyo-night"]
+local theme = palettes[read_theme()] or palettes["tokyo-dark"]
 
 hl.monitor({
     output   = "",
@@ -1055,6 +1129,10 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("wl-paste --type text --watch cliphist store")
     hl.exec_cmd("wl-paste --type image --watch cliphist store")
     hl.exec_cmd("tile-welcome")
+end)
+
+hl.on("hyprland.reload", function()
+    hl.exec_cmd("tile-theme init")
 end)
 
 hl.config({
@@ -1148,16 +1226,17 @@ hl.gesture({
 
 -- Apps
 hl.bind("Super_L", hl.dsp.exec_cmd(menu), { release = true })
-hl.bind(mainMod .. " + Space",  hl.dsp.exec_cmd(menu))
-hl.bind(mainMod .. " + Return", hl.dsp.exec_cmd(terminal))
-hl.bind(mainMod .. " + B",      hl.dsp.exec_cmd(browser))
-hl.bind(mainMod .. " + E",      hl.dsp.exec_cmd(fileManager))
-hl.bind(mainMod .. " + C",      hl.dsp.exec_cmd("tile-clipboard"))
-hl.bind(mainMod .. " + T",      hl.dsp.exec_cmd("tile-theme menu"))
-hl.bind("CTRL + SHIFT + Escape", hl.dsp.exec_cmd("flatpak run io.missioncenter.MissionCenter"))
-hl.bind(mainMod .. " + F1",     hl.dsp.exec_cmd("tile-keybinds"))
-hl.bind(mainMod .. " + L",      hl.dsp.exec_cmd("loginctl lock-session"))
-hl.bind(mainMod .. " + Escape", hl.dsp.exec_cmd("tile-powermenu"))
+hl.bind(mainMod .. " + Space",     hl.dsp.exec_cmd(menu))
+hl.bind(mainMod .. " + Return",    hl.dsp.exec_cmd(terminal))
+hl.bind(mainMod .. " + B",         hl.dsp.exec_cmd(browser))
+hl.bind(mainMod .. " + E",         hl.dsp.exec_cmd(fileManager))
+hl.bind(mainMod .. " + C",         hl.dsp.exec_cmd("tile-clipboard"))
+hl.bind(mainMod .. " + T",         hl.dsp.exec_cmd("tile-theme menu"))
+hl.bind(mainMod .. " + SHIFT + T", hl.dsp.exec_cmd("tile-theme toggle"))
+hl.bind("CTRL + SHIFT + Escape",   hl.dsp.exec_cmd("flatpak run io.missioncenter.MissionCenter"))
+hl.bind(mainMod .. " + F1",        hl.dsp.exec_cmd("tile-keybinds"))
+hl.bind(mainMod .. " + L",         hl.dsp.exec_cmd("loginctl lock-session"))
+hl.bind(mainMod .. " + Escape",    hl.dsp.exec_cmd("tile-powermenu"))
 
 -- Windows
 hl.bind(mainMod .. " + Q", hl.dsp.window.close())
@@ -1410,8 +1489,9 @@ EOF
         "exec": "tile-theme icon",
         "interval": 2,
         "on-click": "tile-theme menu",
+        "on-click-right": "tile-theme toggle",
         "tooltip": true,
-        "tooltip-format": "Theme menu (SUPER + T)"
+        "tooltip-format": "Left-click: Theme menu (SUPER+T)\nRight-click: Dark/Light (SUPER+Shift+T)"
     },
     "custom/power": {
         "format": "",
@@ -1421,24 +1501,31 @@ EOF
 }
 EOF
 
-  # ---- 6 Complete Themes -----------------------------------------------------
-  declare -A P_TOKYO_NIGHT=( [bg]=1a1b26 [fg]=c0caf5 [muted]=565f89 [accent]=7aa2f7 [accent2]=bb9af7
-                             [cyan]=7dcfff [green]=9ece6a [yellow]=e0af68 [red]=f7768e [sel]=33467c )
+  # ---- 10 Complete Themes (5 Dark + 5 Light) ---------------------------------
+  declare -A P_TOKYO_DARK=(   [bg]=1a1b26 [fg]=c0caf5 [muted]=565f89 [accent]=7aa2f7 [accent2]=bb9af7
+                              [cyan]=7dcfff [green]=9ece6a [yellow]=e0af68 [red]=f7768e [sel]=33467c )
+  declare -A P_TOKYO_LIGHT=(  [bg]=e1e2e7 [fg]=3760bf [muted]=8990b3 [accent]=2e7de9 [accent2]=9854f1
+                              [cyan]=007197 [green]=587539 [yellow]=8c6c3e [red]=f52a65 [sel]=b7c1e3 )
 
-  declare -A P_TOKYO_DAY=(   [bg]=e1e2e7 [fg]=3760bf [muted]=8990b3 [accent]=2e7de9 [accent2]=9854f1
-                             [cyan]=007197 [green]=587539 [yellow]=8c6c3e [red]=f52a65 [sel]=b7c1e3 )
+  declare -A P_MATCHA_DARK=(  [bg]=1b2620 [fg]=e2f0e6 [muted]=6c8a76 [accent]=a3d9a5 [accent2]=d8f3dc
+                              [cyan]=95d5b2 [green]=74c69d [yellow]=e9edc9 [red]=f28482 [sel]=2d4739 )
+  declare -A P_MATCHA_LIGHT=( [bg]=f1f8f3 [fg]=1b4332 [muted]=74a88e [accent]=40916c [accent2]=52b788
+                              [cyan]=2d6a4f [green]=2d6a4f [yellow]=8c6c3e [red]=d62828 [sel]=cde5d5 )
 
-  declare -A P_MATCHA=(      [bg]=1b2620 [fg]=e2f0e6 [muted]=6c8a76 [accent]=a3d9a5 [accent2]=d8f3dc
-                             [cyan]=95d5b2 [green]=74c69d [yellow]=e9edc9 [red]=f28482 [sel]=2d4739 )
+  declare -A P_SUNSET_DARK=(  [bg]=2b140d [fg]=ffedd8 [muted]=9c6644 [accent]=ff8a3d [accent2]=ffb703
+                              [cyan]=ffd166 [green]=a7c957 [yellow]=ffb703 [red]=e63946 [sel]=5c2c16 )
+  declare -A P_SUNSET_LIGHT=( [bg]=fff6ee [fg]=5c2c16 [muted]=b07d62 [accent]=e65c00 [accent2]=fca311
+                              [cyan]=b54708 [green]=587539 [yellow]=b54708 [red]=d62828 [sel]=f9dcc4 )
 
-  declare -A P_SUNSET=(      [bg]=2b140d [fg]=ffedd8 [muted]=9c6644 [accent]=ff8a3d [accent2]=ffb703
-                             [cyan]=ffd166 [green]=a7c957 [yellow]=ffb703 [red]=e63946 [sel]=5c2c16 )
+  declare -A P_NORDIC_DARK=(  [bg]=1e242e [fg]=eceff4 [muted]=616e88 [accent]=88c0d0 [accent2]=81a1c1
+                              [cyan]=8fbcbb [green]=a3be8c [yellow]=ebcb8b [red]=bf616a [sel]=3b4252 )
+  declare -A P_NORDIC_LIGHT=( [bg]=eceff4 [fg]=2e3440 [muted]=7b88a1 [accent]=5e81ac [accent2]=81a1c1
+                              [cyan]=4c566a [green]=6b8e4e [yellow]=b48ead [red]=bf616a [sel]=d8dee9 )
 
-  declare -A P_NORDIC=(      [bg]=1e242e [fg]=eceff4 [muted]=616e88 [accent]=88c0d0 [accent2]=81a1c1
-                             [cyan]=8fbcbb [green]=a3be8c [yellow]=ebcb8b [red]=bf616a [sel]=3b4252 )
-
-  declare -A P_ROSE=(        [bg]=24141f [fg]=fce4ec [muted]=8e627a [accent]=f48fb1 [accent2]=ce93d8
-                             [cyan]=f8bbd0 [green]=a5d6a7 [yellow]=ffe082 [red]=ef5350 [sel]=4a2c40 )
+  declare -A P_ROSE_DARK=(    [bg]=24141f [fg]=fce4ec [muted]=8e627a [accent]=f48fb1 [accent2]=ce93d8
+                              [cyan]=f8bbd0 [green]=a5d6a7 [yellow]=ffe082 [red]=ef5350 [sel]=4a2c40 )
+  declare -A P_ROSE_LIGHT=(   [bg]=fdf2f6 [fg]=5c1a36 [muted]=a86480 [accent]=d81b60 [accent2]=8e24aa
+                              [cyan]=ad1457 [green]=2e7d32 [yellow]=9c6f00 [red]=c62828 [sel]=f8bbd0 )
 
   write_theme() {
     local name="$1" icons="$3"
@@ -1511,7 +1598,7 @@ icon-theme=$icons
 terminal=kitty
 prompt="❯ "
 width=32
-lines=8
+lines=10
 horizontal-pad=16
 vertical-pad=10
 inner-pad=6
@@ -1578,12 +1665,16 @@ color15 #${P[fg]}
 EOF
   }
 
-  write_theme tokyo-night   P_TOKYO_NIGHT Papirus-Dark
-  write_theme tokyo-day     P_TOKYO_DAY   Papirus
-  write_theme matcha-pastel P_MATCHA      Papirus-Dark
-  write_theme sunset-ember  P_SUNSET      Papirus-Dark
-  write_theme nordic-frost  P_NORDIC      Papirus-Dark
-  write_theme rose-quartz   P_ROSE        Papirus-Dark
+  write_theme tokyo-dark   P_TOKYO_DARK   Papirus-Dark
+  write_theme tokyo-light  P_TOKYO_LIGHT  Papirus
+  write_theme matcha-dark  P_MATCHA_DARK  Papirus-Dark
+  write_theme matcha-light P_MATCHA_LIGHT Papirus
+  write_theme sunset-dark  P_SUNSET_DARK  Papirus-Dark
+  write_theme sunset-light P_SUNSET_LIGHT Papirus
+  write_theme nordic-dark  P_NORDIC_DARK  Papirus-Dark
+  write_theme nordic-light P_NORDIC_LIGHT Papirus
+  write_theme rose-dark    P_ROSE_DARK    Papirus-Dark
+  write_theme rose-light   P_ROSE_LIGHT   Papirus
 
   # ---- Terminal (kitty) ------------------------------------------------------
   cat > "$S/kitty/kitty.conf" <<'EOF'
@@ -1598,12 +1689,12 @@ cursor_shape beam
 include theme.conf
 EOF
 
-  # Default active theme: tokyo-night
-  ln -sfn themes/tokyo-night.css  "$S/waybar/style.css"
-  ln -sfn themes/tokyo-night.conf "$S/kitty/theme.conf"
-  ln -sfn themes/tokyo-night.ini  "$S/fuzzel/fuzzel.ini"
-  ln -sfn themes/tokyo-night      "$S/mako/config"
-  echo "tokyo-night" > "$S/tile/theme"
+  # Default active theme: tokyo-dark
+  ln -sfn themes/tokyo-dark.css  "$S/waybar/style.css"
+  ln -sfn themes/tokyo-dark.conf "$S/kitty/theme.conf"
+  ln -sfn themes/tokyo-dark.ini  "$S/fuzzel/fuzzel.ini"
+  ln -sfn themes/tokyo-dark      "$S/mako/config"
+  echo "tokyo-dark" > "$S/tile/theme"
 
   # ---- Dark GTK theme + default apps -----------------------------------------
   for v in 3.0 4.0; do
@@ -1719,9 +1810,11 @@ echo '%wheel ALL=(ALL:ALL) ALL' > /etc/sudoers.d/10-wheel
 chmod 440 /etc/sudoers.d/10-wheel
 passwd -l root
 
-# Pacman tweaks
+# Pacman tweaks + multilib
 sed -Ei 's/^#?ParallelDownloads.*/ParallelDownloads = 10/' /etc/pacman.conf
 sed -i 's/^#Color/Color/' /etc/pacman.conf
+sed -i '/^#\[multilib\]/,/^#Include/ s/^#//' /etc/pacman.conf
+pacman -Sy --noconfirm
 
 # Firewall
 sed -i 's/^DEFAULT_INPUT_POLICY=.*/DEFAULT_INPUT_POLICY="DROP"/;
@@ -1828,7 +1921,7 @@ SUMMARY=(
   "Profile  : $MACHINE_LABEL"
   "Hostname : $HOSTNAME"
   "Operator : $USERNAME"
-  "Desktop  : Hyprland (Tile) / 6 Themes / 100% scale"
+  "Desktop  : Hyprland (Tile) / 10 Themes / 100% scale"
   "Duration : $ELAPSED"
   "Log      : /var/log/arch-install.log"
 )
@@ -1838,7 +1931,7 @@ NEXT=(
   "1. Remove the USB stick when the screen goes black"
   "2. Type your encryption key at the boot prompt"
   "3. Log in as '$USERNAME' on the Tile login screen"
-  "4. SUPER for apps, SUPER + T for themes, SUPER + F1 for keys"
+  "4. SUPER+T: Theme menu | SUPER+Shift+T: Dark/Light toggle"
   "5. Wi-Fi: click the network icon in the tray (top right)"
 )
 if [[ "$FLATPAK_OK" == "no" || "$NVIDIA" == "yes" ]]; then
